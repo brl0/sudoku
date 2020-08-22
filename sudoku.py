@@ -12,7 +12,7 @@ pytesseract.pytesseract.tesseract_cmd = r"C:\Users\b_r_l\scoop\apps\tesseract\cu
 
 pyautogui.PAUSE = 0.07
 
-SCREENSHOT_DIR = '/Users/b_r_l/OneDrive/Pictures/Screenshots/sudoku/'
+SCREENSHOT_DIR = '/local/temp/sudoku/'
 
 X_START = 780
 X_END = 1500
@@ -22,19 +22,6 @@ Y_END = 880
 Y_SIZE = (Y_END - Y_START) // 9
 borderx = 5
 bordery = 5
-
-
-def rec_img(path):
-    config = '--oem 1 --psm 10 -c tessedit_char_whitelist=123456789'
-    img = str(path)
-    name = path.stem.replace('-cv2', '')
-    x, y = name.split('_')
-    text = pytesseract.image_to_string(img, config=config)
-    if text:
-        val = int(text[0])
-    else:
-        val = 0
-    return int(x), int(y), val
 
 
 class Game:
@@ -49,39 +36,55 @@ class Game:
                                              Y_SIZE - bordery * 2))
         logger.info("Finished getting grid images.")
 
-    async def img_to_text(self):
+    @staticmethod
+    def proc_img(img_file):
+        img_path = str(img_file)
+        img = Image.open(img_path).convert('L')
+        ret, img = cv2.threshold(np.array(img), 125, 255,
+                                    cv2.THRESH_BINARY)
+        img = Image.fromarray(img.astype(np.uint8))
+        w, h = img.size
+        xd, yd = 5, 5
+        img = img.crop((xd, yd, w - xd, h - yd))
+        clean_img_path = img_path.replace('.png', '-cv2.png')
+        img.save(clean_img_path)
+
+    def proc_imgs(self):
+        for img_file in sorted(Path(SCREENSHOT_DIR).glob('*.png')):
+            self.proc_img(img_file)
+        logger.info("Finished cleaning images.")
+
+    @staticmethod
+    def rec_img(path):
+        config = '--oem 1 --psm 10 -c tessedit_char_whitelist=123456789'
+        i, j = path.stem.replace('-cv2', '').split('_')
+        i, j = int(i), int(j)
+        img_path = str(path)
+        text = pytesseract.image_to_string(img_path, config=config)
+        if text:
+            val = int(text[0])
+        else:
+            val = 0
+        return i, j, val
+
+    def make_board(self):
         empty_board = np.zeros((9, 9))
         grid = np.zeros((9, 9))
-        futures_grid = [[list() for j in range(9)] for i in range(9)]
-        with ProcessPoolExecutor as executor:
-            for i in range(9):
-                for j in range(9):
-                    img_base = SCREENSHOT_DIR + str(i) + '_' + str(j)
-                    img_path = img_base + '.png'
-                    img = Image.open(img_path).convert('L')
-                    ret, img = cv2.threshold(np.array(img), 125, 255, cv2.THRESH_BINARY)
-
-                    img = Image.fromarray(img.astype(np.uint8))
-                    w, h = img.size
-                    xd, yd = 5, 5
-                    img = img.crop((xd, yd, w - xd, h - yd))
-                    img.save(img_base + '-cv2.png')
-
-                    future_text = executor.submit(rec_img, img)
-                    futures_grid[i][j] = future_text
-            for i in range(9):
-                for j in range(9):
-                    text = await futures_grid[i][j].result()
-                    if not text:
-                        empty_board[i][j] = 1
-                        text = 0
-                    grid[i][j] = int(str(text)[0])
+        images = sorted(Path(SCREENSHOT_DIR).glob('*-cv2.png'))
+        with ProcessPoolExecutor() as executor:
+            results = executor.map(self.rec_img, images)
+        for i, j, val in results:
+            grid[i][j] = val
+            if val == 0:
+                empty_board[i][j] = 1
         self.empty_board = empty_board
         self.board = grid
+        logger.info("Finished making board.")
 
-    async def get_grid(self):
+    def get_grid(self):
         self.get_grid_img()
-        await self.img_to_text()
+        self.proc_imgs()
+        self.make_board()
         logger.info("Done recognizing board.")
         print('Original board:\n', self.board, '\n')
 
@@ -132,11 +135,16 @@ class Game:
 
 
 if __name__ == '__main__':
-    logger.info(f'Started: {time.process_time()}')
+    start_time = time.time()
+    logger.info(f'Started.')
+    for f in Path(SCREENSHOT_DIR).glob('*.png'):
+        f.unlink()
     game = Game()
-    # asyncio.run(game.get_grid())
+    game.get_grid()
     # logger.info('Solving.')
     # game.solve()
-    # logger.info(f'Done. {time.process_time()}')
     # print('Solved board:\n', game.board)
     # game.write()
+    # for f in Path(SCREENSHOT_DIR).glob('*.png'):
+    #     f.unlink()
+    logger.info(f'Done. {time.time() - start_time}')

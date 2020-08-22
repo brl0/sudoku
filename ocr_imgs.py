@@ -10,35 +10,27 @@ from PIL import Image
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Users\b_r_l\scoop\apps\tesseract\current\tesseract.exe"
 
-SCREENSHOT_DIR = '/local/temp/sudoku/'
+SCREENSHOT_DIR = '/local/temp/sudoku/missed'
 
 
 def rec_img(path):
     config = '--oem 1 --psm 10 -c tessedit_char_whitelist=123456789'
     img = str(path)
-    name = path.stem.replace('-cv2', '')
-    x, y = name.split('_')
     text = pytesseract.image_to_string(img, config=config)
-    if text:
-        val = int(text[0])
-    else:
-        val = 0
-    return int(x), int(y), val
+    return path.stem, text
 
 
 async def process_images():
-    grid = np.zeros((9, 9))
-    images = sorted(Path(SCREENSHOT_DIR).glob('*-cv2.png'))
+    images = sorted(Path(SCREENSHOT_DIR).glob('*.png'))
     with ProcessPoolExecutor() as executor:
         results = executor.map(rec_img, images)
-    for x, y, val in results:
-        grid[x][y] = val
-    return grid
+    return [*results]
 
 
 if __name__ == '__main__':
     start_time = time.time()
     logger.info(f'Started.')
-    grid = asyncio.run(process_images())
+    results = asyncio.run(process_images())
     logger.info(f'Done. {time.time() - start_time}')
-    print(grid)
+    for name, val in results:
+        print(name, val)
