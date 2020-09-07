@@ -12,13 +12,13 @@ pytesseract.pytesseract.tesseract_cmd = r"C:\Users\b_r_l\scoop\apps\tesseract\cu
 
 pyautogui.PAUSE = 0.07
 
-SCREENSHOT_DIR = '/local/temp/sudoku/'
+SCREENSHOT_DIR = 'E:/temp/sudoku/'
 
-X_START = 780
-X_END = 1500
+X_START = 340
+X_END = 1035
 X_SIZE = (X_END - X_START) // 9
-Y_START = 160
-Y_END = 880
+Y_START = 190
+Y_END = 885
 Y_SIZE = (Y_END - Y_START) // 9
 borderx = 5
 bordery = 5
